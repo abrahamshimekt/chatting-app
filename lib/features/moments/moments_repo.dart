@@ -7,14 +7,35 @@ import 'moment_model.dart';
 class MomentsRepo {
   final SupabaseClient _c = supa;
 
-  /// Live feed of a single user's moments (newest first).
+  /// Live feed of a single user's moments (newest first), including likes and viewers count.
   Stream<List<Moment>> myMoments(String userId) {
     return _c
         .from('moments')
         .stream(primaryKey: ['id'])
         .eq('author_id', userId)
         .order('created_at', ascending: false)
-        .map((rows) => rows.map((e) => Moment.fromJson(e as Map<String, dynamic>)).toList());
+        .map((rows) async {
+          final moments = rows.map((e) => Moment.fromJson(e)).toList();
+          // Fetch likes and viewers count for each moment
+          for (var i = 0; i < moments.length; i++) {
+            final likesCount = await getLikesCount(moments[i].id);
+            final viewersCount = await getViewersCount(moments[i].id);
+            moments[i] = Moment(
+              id: moments[i].id,
+              authorId: moments[i].authorId,
+              text: moments[i].text,
+              mediaType: moments[i].mediaType,
+              mediaUrl: moments[i].mediaUrl,
+              createdAt: moments[i].createdAt,
+              updatedAt: moments[i].updatedAt,
+              likesCount: likesCount,
+              viewersCount: viewersCount,
+              comments: moments[i].comments,
+            );
+          }
+          return moments;
+        })
+        .asyncMap((future) => future);
   }
 
   /// Uploads an image/video to the `moments` bucket and returns a public URL.
@@ -25,12 +46,7 @@ class MomentsRepo {
     final path = '$authorId/$folder/${DateTime.now().millisecondsSinceEpoch}$ext';
 
     await _c.storage.from('moments').upload(path, file);
-    // If bucket is public:
     return _c.storage.from('moments').getPublicUrl(path);
-
-    // If bucket is private, use signed URLs instead:
-    // final signed = await _c.storage.from('moments').createSignedUrl(path, 60 * 60 * 24 * 7);
-    // return signed;
   }
 
   /// Create from picker (optional text + optional media file)
@@ -59,7 +75,7 @@ class MomentsRepo {
 
   /// Update (optionally swap media)
   Future<void> updateMoment({
-    required String id,      // UUID
+    required String id,
     String? text,
     File? newMedia,
     required String authorId,
@@ -84,14 +100,15 @@ class MomentsRepo {
     await _c.from('moments').update(update).eq('id', id);
   }
 
+  /// Delete a moment
   Future<void> deleteMoment(String id) async {
     await _c.from('moments').delete().eq('id', id);
   }
 
-  /// Create using a direct URL (for your CreateMomentScreen)
+  /// Create using a direct URL (for CreateMomentScreen)
   Future<void> create({
     required String mediaUrl,
-    required String mediaType, // 'image' or 'video'
+    required String mediaType,
     String? caption,
   }) async {
     final me = _c.auth.currentUser!.id;
@@ -101,5 +118,87 @@ class MomentsRepo {
       'media_type': mediaType,
       'media_url': mediaUrl.trim(),
     });
+  }
+
+  /// Like a moment
+  Future<void> likeMoment(String momentId, String userId) async {
+    await _c.from('moment_likes').insert({
+      'moment_id': momentId,
+      'user_id': userId,
+    });
+  }
+
+  /// Unlike a moment
+  Future<void> unlikeMoment(String momentId, String userId) async {
+    await _c.from('moment_likes').delete().eq('moment_id', momentId).eq('user_id', userId);
+  }
+
+  /// Get the number of likes for a moment
+  Future<int> getLikesCount(String momentId) async {
+    final response = await _c.from('moment_likes').select().eq('moment_id', momentId).count();
+    return response.count;
+  }
+
+  /// Check if the current user has liked a moment
+  Future<bool> hasLiked(String momentId, String userId) async {
+    final response = await _c
+        .from('moment_likes')
+        .select()
+        .eq('moment_id', momentId)
+        .eq('user_id', userId)
+        .maybeSingle();
+    return response != null;
+  }
+
+  /// Create a comment
+  Future<void> createComment({
+    required String momentId,
+    required String authorId,
+    required String body,
+    String lang = 'en',
+  }) async {
+    await _c.from('moment_comments').insert({
+      'moment_id': momentId,
+      'author_id': authorId,
+      'body': body.trim(),
+      'lang': lang,
+    });
+  }
+
+  /// Get comments for a moment
+  Stream<List<MomentComment>> getComments(String momentId) {
+    return _c
+        .from('moment_comments')
+        .stream(primaryKey: ['id'])
+        .eq('moment_id', momentId)
+        .order('created_at', ascending: false)
+        .map((rows) => rows.map((e) => MomentComment.fromJson(e)).toList());
+  }
+
+  /// Increment view count (placeholder: assumes moment_views table or counter)
+  Future<void> incrementViewCount(String momentId, String userId) async {
+    // Placeholder: Update this if moment_views table is created
+    try {
+      await _c.from('moment_views').insert({
+        'moment_id': momentId,
+        'user_id': userId,
+      });
+    } catch (e) {
+      // Ignore duplicate key errors (user already viewed)
+      if (e.toString().contains('duplicate key')) return;
+      // Fallback: Increment a counter in moments table (requires schema change)
+      await _c.rpc('increment_views', params: {'moment_id': momentId});
+    }
+  }
+
+  /// Get the number of viewers for a moment (placeholder)
+  Future<int> getViewersCount(String momentId) async {
+    try {
+      final response = await _c.from('moment_views').select().eq('moment_id', momentId).count();
+      return response.count;
+    } catch (e) {
+      // Fallback: Return 0 if moment_views table doesn't exist
+      return 0;
+    }
   }
 }
