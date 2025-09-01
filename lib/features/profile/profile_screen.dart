@@ -1,3 +1,6 @@
+import 'package:chating_app/features/coins/gifts_screen.dart';
+import 'package:chating_app/features/coins/wallet_screen.dart';
+import 'package:chating_app/features/users/users_payment_status_list.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,7 +11,6 @@ import '../../core/supa.dart';
 import 'profile_repo.dart';
 import 'profile_model.dart';
 import 'profile_button.dart' show showProfilePopup;
-
 import '../social/social_repo.dart';
 import '../social/follow_list_screen.dart';
 import '../moments/moments_screen.dart';
@@ -43,7 +45,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ---- Avatar editing ----
-
   Future<void> _onChangeAvatar() async {
     if (me == null) return;
     final action = await showModalBottomSheet<_AvatarAction>(
@@ -164,6 +165,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = me?.role == 'admin'; // Assuming role is in Profile model
+
     return Stack(
       children: [
         Scaffold(
@@ -254,6 +257,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               );
                             },
                           ),
+                          const Divider(height: 1),
+                          ListTile(
+                            leading: const Icon(Icons.currency_exchange_outlined),
+                            title: const Text('Coins'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WalletScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          if (isAdmin)
+                            const Divider(height: 1),
+                          if (isAdmin)
+                            ListTile(
+                              leading: const Icon(Icons.people_outline),
+                              title: const Text('Users'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const UsersScreen(),
+                                  ),
+                                );
+                              },
+                            ),
                         ],
                       ),
                     ),
@@ -336,7 +369,8 @@ class _EditableAvatar extends StatelessWidget {
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 child: busy
                     ? const SizedBox(
-                        height: 14, width: 14,
+                        height: 14,
+                        width: 14,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.edit, size: 16, color: Colors.white),

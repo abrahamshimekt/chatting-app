@@ -350,9 +350,7 @@ class _IdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasAvatar =
-        (person.avatarUrl != null && person.avatarUrl!.isNotEmpty);
-    final locParts = [
+    [
       person.subcity,
       person.city,
       person.region,
