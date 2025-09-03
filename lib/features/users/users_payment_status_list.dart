@@ -4,7 +4,6 @@ import 'package:flutter/services.dart'; // For clipboard functionality
 import '../../core/supa.dart';
 import '../profile/profile_model.dart';
 import '../profile/profile_repo.dart';
-
 class UsersPurchaseStatus extends StatefulWidget {
   const UsersPurchaseStatus({super.key});
 
@@ -111,6 +110,7 @@ class _UsersPurchaseStatusState extends State<UsersPurchaseStatus> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Transaction approved')));
       if (_isAdmin) await _loadUsers(); // Refresh only if admin
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,6 +120,7 @@ class _UsersPurchaseStatusState extends State<UsersPurchaseStatus> {
     }
   }
 
+
   void _copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(
@@ -127,11 +128,14 @@ class _UsersPurchaseStatusState extends State<UsersPurchaseStatus> {
     ).showSnackBar(SnackBar(content: Text('$label copied to clipboard')));
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+
         title: const Text('Users Purchase Status'),
+
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
