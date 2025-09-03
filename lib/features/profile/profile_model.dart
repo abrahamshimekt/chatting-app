@@ -13,7 +13,7 @@ class Profile {
     required this.gender,
     required this.role,
     this.avatarUrl,
-    this.isVerifiedGender = false,
+    this.isVerifiedGender = false, required String country, required String region, required DateTime dateOfBirth, required String city,
   });
 
   factory Profile.fromJson(Map<String, dynamic> j) => Profile(
@@ -22,7 +22,7 @@ class Profile {
         gender: j['gender'] as String,
         avatarUrl: j['avatar_url'] as String?,
         role:j["role"] as String?,
-        isVerifiedGender: (j['is_verified_gender'] as bool?) ?? false,
+        isVerifiedGender: (j['is_verified_gender'] as bool?) ?? false, country: '', region: '', dateOfBirth: DateTime(2000), city: '',
       );
 
   Map<String, dynamic> toJson() => {
