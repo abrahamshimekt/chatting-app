@@ -4,7 +4,6 @@ import 'package:flutter/services.dart'; // For clipboard functionality
 import '../../core/supa.dart';
 import '../profile/profile_model.dart';
 import '../profile/profile_repo.dart';
-
 class UsersPurchaseStatus extends StatefulWidget {
   const UsersPurchaseStatus({super.key});
 
@@ -119,7 +118,6 @@ class _UsersPurchaseStatusState extends State<UsersPurchaseStatus> {
       }
     }
   }
-
   void _copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(
