@@ -2,60 +2,43 @@ import '../../core/supa.dart';
 
 class GiftsRepo {
   Future<List<Map<String, dynamic>>> catalog() async {
-    return await supa.from('gift_catalog').select('*').order('price_coins');
+    return await supa
+        .from('gift_catalog')
+        .select('id, name, price_coins, icon')
+        .order('price_coins');
   }
 
-  Future<void> sendGift({required String receiver, required int giftId}) async {
+  Future<Map<String, dynamic>> getUserBalance() async {
     final uid = supa.auth.currentUser!.id;
-    // naive client-side flow (production: server function)
-    final gift = await supa
-        .from('gift_catalog')
-        .select('price_coins')
-        .eq('id', giftId)
-        .single();
-    final price = gift['price_coins'] as int;
-
-    final w = await supa
+    return await supa
         .from('wallets')
         .select('balance')
         .eq('user_id', uid)
         .single();
-    final bal = w['balance'] as int;
-    if (bal < price) throw Exception('Insufficient coins');
+  }
 
-    // debit sender wallet & log txn
-    await supa
-        .from('wallets')
-        .update({'balance': bal - price})
-        .eq('user_id', uid);
-    await supa.from('coin_txns').insert({
-      'user_id': uid,
-      'kind': 'gift_send',
-      'amount': -price,
-      'meta': {'gift_id': giftId, 'to': receiver},
-    });
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    return await supa
+        .from('profiles')
+        .select('user_id, display_name, avatar_url')
+        .ilike('display_name', '%$query%')
+        .order('display_name');
+  }
 
-    // record gift; credit receiver (could be via trigger)
-    await supa.from('sent_gifts').insert({
-      'sender': uid,
-      'receiver': receiver,
-      'gift_id': giftId,
-    });
-    final rw = await supa
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', receiver)
-        .single();
-    final rbal = rw['balance'] as int;
-    await supa
-        .from('wallets')
-        .update({'balance': rbal + price})
-        .eq('user_id', receiver);
-    await supa.from('coin_txns').insert({
-      'user_id': receiver,
-      'kind': 'gift_receive',
-      'amount': price,
-      'meta': {'gift_id': giftId, 'from': uid},
-    });
+  Future<void> sendGift({
+    required String receiver,
+    required String giftId,
+    required int giftPrice,
+  }) async {
+    final uid = supa.auth.currentUser!.id;
+    await supa.rpc(
+      'update_wallets_after_gift',
+      params: {
+        'p_sender_id': uid,
+        'p_receiver_id': receiver,
+        'p_gift_id': giftId,
+        'p_gift_price': giftPrice,
+      },
+    );
   }
 }

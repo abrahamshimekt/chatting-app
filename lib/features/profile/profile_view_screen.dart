@@ -22,14 +22,15 @@ _SizeClass _classOf(BoxConstraints c) {
 double _maxContentWidth(_SizeClass sc) =>
     sc == _SizeClass.expanded ? 1000 : 720;
 
-EdgeInsets _hPad(_SizeClass sc) {
+EdgeInsets _hPad(_SizeClass sc, double screenWidth) {
+  final basePadding = screenWidth * 0.04;
   switch (sc) {
     case _SizeClass.compact:
-      return const EdgeInsets.symmetric(horizontal: 12);
+      return EdgeInsets.symmetric(horizontal: basePadding);
     case _SizeClass.medium:
-      return const EdgeInsets.symmetric(horizontal: 20);
+      return EdgeInsets.symmetric(horizontal: basePadding * 1.2);
     case _SizeClass.expanded:
-      return const EdgeInsets.symmetric(horizontal: 24);
+      return EdgeInsets.symmetric(horizontal: basePadding * 1.5);
   }
 }
 
@@ -37,7 +38,6 @@ EdgeInsets _hPad(_SizeClass sc) {
 class ProfileViewScreen extends StatefulWidget {
   const ProfileViewScreen({super.key, required this.userId});
 
-  /// Convenience factory if you use named routes with args
   static Widget fromRoute(BuildContext context, Object? args) {
     String? userId;
     if (args is Map) userId = args['userId'] as String?;
@@ -50,17 +50,42 @@ class ProfileViewScreen extends StatefulWidget {
   State<ProfileViewScreen> createState() => _ProfileViewScreenState();
 }
 
-class _ProfileViewScreenState extends State<ProfileViewScreen> {
+class _ProfileViewScreenState extends State<ProfileViewScreen>
+    with SingleTickerProviderStateMixin {
   final _peopleRepo = PeopleRepo();
   final _socialRepo = SocialRepo();
   final _chatRepo = ChatRepo();
 
   late Future<Person?> _future;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<Person?> _load() async {
@@ -79,7 +104,6 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final clamped = media.copyWith(
-      // keep a11y but avoid extreme blow-ups
       textScaler: media.textScaler.clamp(maxScaleFactor: 1.2),
     );
 
@@ -88,10 +112,12 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final sc = _classOf(constraints);
+          final screenWidth = constraints.maxWidth;
+          final screenHeight = constraints.maxHeight;
           final expandedHeight = switch (sc) {
-            _SizeClass.compact => 220.0,
-            _SizeClass.medium => 280.0,
-            _SizeClass.expanded => 320.0,
+            _SizeClass.compact => screenHeight * 0.3,
+            _SizeClass.medium => screenHeight * 0.35,
+            _SizeClass.expanded => screenHeight * 0.4,
           };
 
           return Scaffold(
@@ -105,27 +131,35 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                   final theme = Theme.of(context);
                   return Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(screenWidth * 0.06),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.error_outline,
                             color: theme.colorScheme.error,
-                            size: 36,
+                            size: screenWidth * 0.1,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: screenWidth * 0.03),
                           Text(
                             'Failed to load profile.',
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: theme.colorScheme.error,
+                              fontSize: screenWidth * 0.045,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: screenWidth * 0.02),
                           FilledButton.icon(
                             onPressed: _refresh,
                             icon: const Icon(Icons.refresh),
                             label: const Text('Retry'),
+                            style: FilledButton.styleFrom(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: screenWidth * 0.04,
+                                vertical: screenWidth * 0.03,
+                              ),
+                              textStyle: TextStyle(fontSize: screenWidth * 0.04),
+                            ),
                           ),
                         ],
                       ),
@@ -138,21 +172,30 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                   final theme = Theme.of(context);
                   return Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(screenWidth * 0.06),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.person_off_outlined, size: 36),
-                          const SizedBox(height: 12),
+                          Icon(
+                            Icons.person_off_outlined,
+                            size: screenWidth * 0.1,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          SizedBox(height: screenWidth * 0.03),
                           Text(
                             'User not found',
-                            style: theme.textTheme.titleMedium,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontSize: screenWidth * 0.045,
+                            ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: screenWidth * 0.02),
                           TextButton.icon(
                             onPressed: () => Navigator.maybePop(context),
                             icon: const Icon(Icons.arrow_back),
                             label: const Text('Go back'),
+                            style: TextButton.styleFrom(
+                              textStyle: TextStyle(fontSize: screenWidth * 0.04),
+                            ),
                           ),
                         ],
                       ),
@@ -168,8 +211,8 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                         person: person,
                         isSelf: _isSelf,
                         expandedHeight: expandedHeight,
+                        screenWidth: screenWidth,
                       ),
-                      // Identity card BELOW the header (no overlay on image)
                       SliverToBoxAdapter(
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -178,13 +221,16 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                               maxWidth: _maxContentWidth(sc),
                             ),
                             child: Padding(
-                              padding: _hPad(sc).copyWith(top: 12, bottom: 8),
-                              child: _IdentityCard(person: person),
+                              padding: _hPad(sc, screenWidth).copyWith(top: screenWidth * 0.03, bottom: screenWidth * 0.02),
+                              child: _IdentityCard(
+                                person: person,
+                                screenWidth: screenWidth,
+                                sizeClass: sc,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                      // Actions row (and quick details side-by-side on wide screens)
                       SliverToBoxAdapter(
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -193,7 +239,7 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                               maxWidth: _maxContentWidth(sc),
                             ),
                             child: Padding(
-                              padding: _hPad(sc).copyWith(bottom: 8),
+                              padding: _hPad(sc, screenWidth).copyWith(bottom: screenWidth * 0.02),
                               child: _ResponsiveBody(
                                 sizeClass: sc,
                                 person: person,
@@ -201,12 +247,13 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                                 socialRepo: _socialRepo,
                                 chatRepo: _chatRepo,
                                 onChanged: _refresh,
+                                screenWidth: screenWidth,
+                                animationController: _animationController,
                               ),
                             ),
                           ),
                         ),
                       ),
-                      // Stats
                       SliverToBoxAdapter(
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -215,13 +262,16 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                               maxWidth: _maxContentWidth(sc),
                             ),
                             child: Padding(
-                              padding: _hPad(sc).copyWith(bottom: 8),
-                              child: _StatsStrip(userId: person.userId),
+                              padding: _hPad(sc, screenWidth).copyWith(bottom: screenWidth * 0.02),
+                              child: _StatsStrip(
+                                userId: person.userId,
+                                screenWidth: screenWidth,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                      // Details card
+                     
                       SliverToBoxAdapter(
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -230,28 +280,16 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
                               maxWidth: _maxContentWidth(sc),
                             ),
                             child: Padding(
-                              padding: _hPad(sc).copyWith(bottom: 8),
-                              child: _DetailsCard(person: person),
+                              padding: _hPad(sc, screenWidth),
+                              child: _MomentsButton(
+                                userId: person.userId,
+                                screenWidth: screenWidth,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                      // Moments button
-                      SliverToBoxAdapter(
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: _maxContentWidth(sc),
-                            ),
-                            child: Padding(
-                              padding: _hPad(sc),
-                              child: _MomentsButton(userId: person.userId),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      SliverToBoxAdapter(child: SizedBox(height: screenWidth * 0.06)),
                     ],
                   ),
                 );
@@ -264,29 +302,29 @@ class _ProfileViewScreenState extends State<ProfileViewScreen> {
   }
 }
 
-/// Header shows ONLY cover image (no avatar/name/gender/location on top)
+/// Header shows ONLY cover image
 class _HeaderSliver extends StatelessWidget {
   const _HeaderSliver({
     required this.person,
     required this.isSelf,
     required this.expandedHeight,
+    required this.screenWidth,
   });
 
   final Person person;
   final bool isSelf;
   final double expandedHeight;
+  final double screenWidth;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasAvatar =
-        (person.avatarUrl != null && person.avatarUrl!.isNotEmpty);
+    final hasAvatar = (person.avatarUrl != null && person.avatarUrl!.isNotEmpty);
 
     return SliverAppBar(
       pinned: true,
       stretch: true,
       expandedHeight: expandedHeight,
-
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () => Navigator.maybePop(context),
@@ -302,9 +340,9 @@ class _HeaderSliver extends StatelessWidget {
                   const SnackBar(content: Text('Reported (demo)')),
                 );
               } else if (v == 'block') {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Blocked (demo)')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Blocked (demo)')),
+                );
               }
             },
             itemBuilder: (ctx) => const [
@@ -317,7 +355,7 @@ class _HeaderSliver extends StatelessWidget {
         background: hasAvatar
             ? ColorFiltered(
                 colorFilter: ColorFilter.mode(
-                  Colors.black.withOpacity(0.25),
+                  Colors.black.withOpacity(0.3),
                   BlendMode.darken,
                 ),
                 child: Image(
@@ -329,8 +367,8 @@ class _HeaderSliver extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      theme.colorScheme.primaryContainer,
-                      theme.colorScheme.secondaryContainer,
+                      theme.colorScheme.primaryContainer.withOpacity(0.8),
+                      theme.colorScheme.secondaryContainer.withOpacity(0.8),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -342,15 +380,45 @@ class _HeaderSliver extends StatelessWidget {
   }
 }
 
-/// Identity card: avatar + name + gender + location (separate from header)
+/// Identity card: gender icon + name + location (no avatar)
 class _IdentityCard extends StatelessWidget {
-  const _IdentityCard({required this.person});
+  const _IdentityCard({
+    required this.person,
+    required this.screenWidth,
+    required this.sizeClass,
+  });
+
   final Person person;
+  final double screenWidth;
+  final _SizeClass sizeClass;
+
+  IconData _getGenderIcon(String? gender) {
+    switch (gender?.toLowerCase().trim()) {
+      case 'male':
+        return Icons.male;
+      case 'female':
+        return Icons.female;
+      default:
+        return Icons.person;
+    }
+  }
+
+  String _getGenderLabel(String? gender) {
+    switch (gender?.toLowerCase().trim()) {
+      case 'male':
+        return 'Male';
+      case 'female':
+        return 'Female';
+      default:
+        return 'Unknown';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    [
+    final isLargeScreen = sizeClass != _SizeClass.compact;
+    final locParts = [
       person.subcity,
       person.city,
       person.region,
@@ -358,30 +426,63 @@ class _IdentityCard extends StatelessWidget {
     ].where((e) => (e ?? '').trim().isNotEmpty).cast<String>().toList();
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 6,
+      shadowColor: theme.colorScheme.shadow.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(width: 16),
-            // Name + gender + location
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            // Gender icon + name
+            Row(
+              children: [
+                Semantics(
+                  label: _getGenderLabel(person.gender),
+                  child: Icon(
+                    _getGenderIcon(person.gender),
+                    size: isLargeScreen ? 22 : 18,
+                    color: theme.colorScheme.onSurface.withOpacity(0.9),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.02),
+                Expanded(
+                  child: Text(
                     person.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
+                      fontSize: screenWidth * 0.05,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (locParts.isNotEmpty) ...[
+              SizedBox(height: screenWidth * 0.02),
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: isLargeScreen ? 18 : 16,
+                    color: theme.colorScheme.onSurface.withOpacity(0.9),
+                  ),
+                  SizedBox(width: screenWidth * 0.02),
+                  Expanded(
+                    child: Text(
+                      locParts.join(', '),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: screenWidth * 0.035,
+                        color: theme.colorScheme.onSurface.withOpacity(0.9),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -397,6 +498,8 @@ class _ResponsiveBody extends StatelessWidget {
     required this.socialRepo,
     required this.chatRepo,
     required this.onChanged,
+    required this.screenWidth,
+    required this.animationController,
   });
 
   final _SizeClass sizeClass;
@@ -405,13 +508,14 @@ class _ResponsiveBody extends StatelessWidget {
   final SocialRepo socialRepo;
   final ChatRepo chatRepo;
   final Future<void> Function() onChanged;
+  final double screenWidth;
+  final AnimationController animationController;
 
   @override
   Widget build(BuildContext context) {
     final isTwoCol = sizeClass != _SizeClass.compact;
 
     if (!isTwoCol) {
-      // Single column (phones)
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -421,16 +525,16 @@ class _ResponsiveBody extends StatelessWidget {
             socialRepo: socialRepo,
             chatRepo: chatRepo,
             onChanged: onChanged,
+            screenWidth: screenWidth,
+            animationController: animationController,
           ),
         ],
       );
     }
 
-    // Two columns (tablets/desktop)
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left column: actions
         Expanded(
           flex: 7,
           child: _InfoAndActions(
@@ -439,19 +543,31 @@ class _ResponsiveBody extends StatelessWidget {
             socialRepo: socialRepo,
             chatRepo: chatRepo,
             onChanged: onChanged,
+            screenWidth: screenWidth,
+            animationController: animationController,
           ),
         ),
-        const SizedBox(width: 16),
-        // Right column: quick details peek
-        Expanded(flex: 6, child: _QuickDetailsPeek(person: person)),
+        SizedBox(width: screenWidth * 0.04),
+        Expanded(
+          flex: 6,
+          child: _QuickDetailsPeek(
+            person: person,
+            screenWidth: screenWidth,
+          ),
+        ),
       ],
     );
   }
 }
 
 class _QuickDetailsPeek extends StatelessWidget {
-  const _QuickDetailsPeek({required this.person});
+  const _QuickDetailsPeek({
+    required this.person,
+    required this.screenWidth,
+  });
+
   final Person person;
+  final double screenWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -464,25 +580,37 @@ class _QuickDetailsPeek extends StatelessWidget {
     ].where((e) => (e ?? '').trim().isNotEmpty).cast<String>().toList();
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 6,
+      shadowColor: theme.colorScheme.shadow.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(screenWidth * 0.03),
         child: Wrap(
-          runSpacing: 8,
+          runSpacing: screenWidth * 0.02,
           children: [
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.badge_outlined, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
+                Icon(
+                  Icons.badge_outlined,
+                  color: theme.colorScheme.primary,
+                  size: screenWidth * 0.045,
+                ),
+                SizedBox(width: screenWidth * 0.02),
                 Text(
                   'Gender: ',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    fontSize: screenWidth * 0.035,
                   ),
                 ),
-                Flexible(child: Text(person.gender)),
+                Flexible(
+                  child: Text(
+                    person.gender,
+                    style: TextStyle(fontSize: screenWidth * 0.035),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             if (locParts.isNotEmpty)
@@ -492,17 +620,20 @@ class _QuickDetailsPeek extends StatelessWidget {
                   Icon(
                     Icons.location_on_outlined,
                     color: theme.colorScheme.primary,
+                    size: screenWidth * 0.045,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: screenWidth * 0.02),
                   Text(
                     'Location: ',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
+                      fontSize: screenWidth * 0.035,
                     ),
                   ),
                   Flexible(
                     child: Text(
                       locParts.join(', '),
+                      style: TextStyle(fontSize: screenWidth * 0.035),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -515,7 +646,6 @@ class _QuickDetailsPeek extends StatelessWidget {
   }
 }
 
-/// Follow/Message/Call row
 class _InfoAndActions extends StatefulWidget {
   const _InfoAndActions({
     required this.person,
@@ -523,6 +653,8 @@ class _InfoAndActions extends StatefulWidget {
     required this.socialRepo,
     required this.chatRepo,
     required this.onChanged,
+    required this.screenWidth,
+    required this.animationController,
   });
 
   final Person person;
@@ -530,6 +662,8 @@ class _InfoAndActions extends StatefulWidget {
   final SocialRepo socialRepo;
   final ChatRepo chatRepo;
   final Future<void> Function() onChanged;
+  final double screenWidth;
+  final AnimationController animationController;
 
   @override
   State<_InfoAndActions> createState() => _InfoAndActionsState();
@@ -555,30 +689,36 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
     final theme = Theme.of(context);
 
     if (widget.isSelf) {
-      // Self profile: Edit & Moments
       return Padding(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+        padding: EdgeInsets.fromLTRB(0, 0, 0, widget.screenWidth * 0.02),
         child: Row(
           children: [
             Expanded(
-              child: FilledButton.icon(
+              child: _AnimatedButton(
                 onPressed: () => Navigator.pushNamed(context, '/profile/edit'),
-                icon: const Icon(Icons.edit),
-                label: const Text('Edit Profile'),
+                icon: Icons.edit,
+                label: 'Edit Profile',
+                isFilled: true,
+                theme: theme,
+                screenWidth: widget.screenWidth,
+                animationController: widget.animationController,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: widget.screenWidth * 0.03),
             Expanded(
-              child: OutlinedButton.icon(
+              child: _AnimatedButton(
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        MomentsScreen(userId: supa.auth.currentUser!.id),
+                    builder: (_) => MomentsScreen(userId: supa.auth.currentUser!.id),
                   ),
                 ),
-                icon: const Icon(Icons.burst_mode_outlined),
-                label: const Text('My Moments'),
+                icon: Icons.burst_mode_outlined,
+                label: 'My Moments',
+                isFilled: false,
+                theme: theme,
+                screenWidth: widget.screenWidth,
+                animationController: widget.animationController,
               ),
             ),
           ],
@@ -586,9 +726,8 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
       );
     }
 
-    // Other user: Follow, Message, Call
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+      padding: EdgeInsets.fromLTRB(0, 0, 0, widget.screenWidth * 0.02),
       child: Row(
         children: [
           Expanded(
@@ -596,7 +735,7 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
               future: _followingFuture,
               builder: (context, snap) {
                 final following = snap.data ?? false;
-                return FilledButton.icon(
+                return _AnimatedButton(
                   onPressed: () async {
                     HapticFeedback.lightImpact();
                     try {
@@ -620,19 +759,19 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
                       await widget.onChanged();
                     }
                   },
-                  icon: Icon(
-                    following
-                        ? Icons.check_rounded
-                        : Icons.person_add_alt_1_rounded,
-                  ),
-                  label: Text(following ? 'Following' : 'Follow'),
+                  icon: following ? Icons.check_rounded : Icons.person_add_alt_1_rounded,
+                  label: following ? 'Following' : 'Follow',
+                  isFilled: true,
+                  theme: theme,
+                  screenWidth: widget.screenWidth,
+                  animationController: widget.animationController,
                 );
               },
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: widget.screenWidth * 0.03),
           Expanded(
-            child: OutlinedButton.icon(
+            child: _AnimatedButton(
               onPressed: () async {
                 HapticFeedback.lightImpact();
                 final convId = await widget.chatRepo.upsertDirectConversation(
@@ -642,12 +781,16 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
                   context.push('/chat/$convId');
                 }
               },
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('Message'),
+              icon: Icons.chat_bubble_outline,
+              label: 'Message',
+              isFilled: false,
+              theme: theme,
+              screenWidth: widget.screenWidth,
+              animationController: widget.animationController,
             ),
           ),
-          const SizedBox(width: 12),
-          IconButton.filledTonal(
+          SizedBox(width: widget.screenWidth * 0.03),
+          _AnimatedIconButton(
             tooltip: 'Call',
             onPressed: () {
               HapticFeedback.lightImpact();
@@ -658,7 +801,10 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
                 ),
               );
             },
-            icon: const Icon(Icons.videocam_outlined),
+            icon: Icons.videocam_outlined,
+            theme: theme,
+            screenWidth: widget.screenWidth,
+            animationController: widget.animationController,
           ),
         ],
       ),
@@ -666,10 +812,14 @@ class _InfoAndActionsState extends State<_InfoAndActions> {
   }
 }
 
-/// Followers • Following • Likes
 class _StatsStrip extends StatelessWidget {
-  const _StatsStrip({required this.userId});
+  const _StatsStrip({
+    required this.userId,
+    required this.screenWidth,
+  });
+
   final String userId;
+  final double screenWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -682,7 +832,7 @@ class _StatsStrip extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: EdgeInsets.symmetric(vertical: screenWidth * 0.035),
             child: StreamBuilder<int>(
               stream: stream,
               builder: (context, snap) {
@@ -695,10 +845,16 @@ class _StatsStrip extends StatelessWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: theme.colorScheme.primary,
+                        fontSize: screenWidth * 0.045,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(label, style: theme.textTheme.bodySmall),
+                    SizedBox(height: screenWidth * 0.01),
+                    Text(
+                      label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: screenWidth * 0.03,
+                      ),
+                    ),
                   ],
                 );
               },
@@ -709,8 +865,9 @@ class _StatsStrip extends StatelessWidget {
     }
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 6,
+      shadowColor: theme.colorScheme.shadow.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           stat('Followers', repo.followersCount(userId), () {
@@ -720,7 +877,7 @@ class _StatsStrip extends StatelessWidget {
               arguments: {'userId': userId, 'showFollowers': true},
             );
           }),
-          _divider(theme),
+          _divider(theme, screenWidth),
           stat('Following', repo.followingCount(userId), () {
             Navigator.pushNamed(
               context,
@@ -728,24 +885,28 @@ class _StatsStrip extends StatelessWidget {
               arguments: {'userId': userId, 'showFollowers': false},
             );
           }),
-          _divider(theme),
+          _divider(theme, screenWidth),
           stat('Likes', repo.likesReceivedCount(userId), null),
         ],
       ),
     );
   }
 
-  Widget _divider(ThemeData theme) => Container(
-    width: 1,
-    height: 40,
-    color: theme.dividerColor.withOpacity(.3),
-  );
+  Widget _divider(ThemeData theme, double screenWidth) => Container(
+        width: 1,
+        height: screenWidth * 0.1,
+        color: theme.dividerColor.withOpacity(0.3),
+      );
 }
 
-/// Details card (gender + location again in a full section)
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({required this.person});
+  const _DetailsCard({
+    required this.person,
+    required this.screenWidth,
+  });
+
   final Person person;
+  final double screenWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -758,21 +919,42 @@ class _DetailsCard extends StatelessWidget {
     ].where((e) => (e ?? '').trim().isNotEmpty).cast<String>().toList();
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 6,
+      shadowColor: theme.colorScheme.shadow.withOpacity(0.2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: const Text('Gender'),
-            subtitle: Text(person.gender),
+            leading: Icon(
+              Icons.badge_outlined,
+              size: screenWidth * 0.045,
+            ),
+            title: Text(
+              'Gender',
+              style: TextStyle(fontSize: screenWidth * 0.04),
+            ),
+            subtitle: Text(
+              person.gender,
+              style: TextStyle(fontSize: screenWidth * 0.035),
+            ),
           ),
-          if (locParts.isNotEmpty) const Divider(height: 1),
+          if (locParts.isNotEmpty) Divider(height: 1, thickness: 1, indent: screenWidth * 0.04, endIndent: screenWidth * 0.04),
           if (locParts.isNotEmpty)
             ListTile(
-              leading: const Icon(Icons.location_on_outlined),
-              title: const Text('Location'),
-              subtitle: Text(locParts.join(', ')),
+              leading: Icon(
+                Icons.location_on_outlined,
+                size: screenWidth * 0.045,
+              ),
+              title: Text(
+                'Location',
+                style: TextStyle(fontSize: screenWidth * 0.04),
+              ),
+              subtitle: Text(
+                locParts.join(', '),
+                style: TextStyle(fontSize: screenWidth * 0.035),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
         ],
       ),
@@ -781,19 +963,169 @@ class _DetailsCard extends StatelessWidget {
 }
 
 class _MomentsButton extends StatelessWidget {
-  const _MomentsButton({required this.userId});
+  const _MomentsButton({
+    required this.userId,
+    required this.screenWidth,
+  });
+
   final String userId;
+  final double screenWidth;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        icon: const Icon(Icons.burst_mode_outlined),
-        label: const Text('View Moments'),
+        icon: Icon(
+          Icons.burst_mode_outlined,
+          size: screenWidth * 0.045,
+        ),
+        label: Text(
+          'View Moments',
+          style: TextStyle(fontSize: screenWidth * 0.04),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.04,
+            vertical: screenWidth * 0.03,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => MomentsScreen(userId: userId)),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedButton extends StatelessWidget {
+  const _AnimatedButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.isFilled,
+    required this.theme,
+    required this.screenWidth,
+    required this.animationController,
+  });
+
+  final VoidCallback onPressed;
+  final IconData icon;
+  final String label;
+  final bool isFilled;
+  final ThemeData theme;
+  final double screenWidth;
+  final AnimationController animationController;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) {
+        animationController.reset();
+        animationController.forward();
+      },
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1.0, end: 0.92).animate(
+          CurvedAnimation(
+            parent: animationController,
+            curve: Curves.easeInOut,
+          ),
+        ),
+        child: isFilled
+            ? FilledButton.icon(
+                onPressed: onPressed,
+                icon: Icon(icon, size: screenWidth * 0.045),
+                label: Text(
+                  label,
+                  style: TextStyle(fontSize: screenWidth * 0.04),
+                ),
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.04,
+                    vertical: screenWidth * 0.03,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              )
+            : OutlinedButton.icon(
+                onPressed: onPressed,
+                icon: Icon(icon, size: screenWidth * 0.045),
+                label: Text(
+                  label,
+                  style: TextStyle(fontSize: screenWidth * 0.04),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.04,
+                    vertical: screenWidth * 0.03,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _AnimatedIconButton extends StatelessWidget {
+  const _AnimatedIconButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+    required this.theme,
+    required this.screenWidth,
+    required this.animationController,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+  final IconData icon;
+  final ThemeData theme;
+  final double screenWidth;
+  final AnimationController animationController;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) {
+        animationController.reset();
+        animationController.forward();
+      },
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1.0, end: 0.92).animate(
+          CurvedAnimation(
+            parent: animationController,
+            curve: Curves.easeInOut,
+          ),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.primary.withOpacity(0.3),
+            ),
+          ),
+          child: IconButton(
+            tooltip: tooltip,
+            onPressed: onPressed,
+            icon: Icon(
+              icon,
+              size: screenWidth * 0.045,
+              color: theme.colorScheme.primary,
+            ),
+            padding: EdgeInsets.all(screenWidth * 0.03),
+            constraints: BoxConstraints.tight(Size(screenWidth * 0.12, screenWidth * 0.12)),
+          ),
         ),
       ),
     );
